@@ -23,7 +23,7 @@ This document outlines the architectural and technical decisions made to impleme
 > Following this logic, `I`, `N`, and `T` respectively represent the last address, the last transaction, and the last Epoch.
 > 
 
-$$
+```math
 \small
 \begin{aligned}
 i & : \text{address} \\
@@ -31,15 +31,15 @@ t & : \text{number of Epoch} \\
 n & : \text{number of transaction}
 \end{aligned}
 
-$$
+```
 
 ## User’s ParaBoostScore per Transaction Calculation
 
 As previously mentioned, the **ParaBoostScore** formula has been updated to a simplified form as follows:
 
-$$
+```math
 \scriptsize \text{ParaBoostScore}_{i,n} = \left(\text{PSP Staked in sePSP1}_{i,n} + 2.5 \cdot \text{PSP Staked in sePSP2}_{i,n}\right) \cdot \left(1 + \text{ParaBoost}_{i,n}\right)
-$$
+```
 
 ### Components of the Formula
 
@@ -90,30 +90,27 @@ The steps for implementing this program refund are as follows:
     - Collect all transactions conducted using the **Augustus V6.2** and **ParaSwap Delta** contract sets on the Ethereum mainnet within the specified epoch.
     - Calculate the **ParaBoostScore** for each user's transaction based on the previously explained logic.
     - Use the **ParaBoostScore** of each user's transaction to determine the gas refund amount, applying the following formula:
+```math
+\scriptsize \text{Refund Percentage}_{i,n} = 0.152003 \cdot \ln\left(0.000517947 \cdot x_{i,n}\right)
+```
         
-        $$
-        \text{Refund Percentage}_{i,n} = 0.152003 \cdot \ln\left(0.000517947 \cdot x_{i,n}\right)
-        
-        $$
-        
-        where `x` is the ParaBoostScore. The refund levels based on this formula are as follows:
-        
-        | **ParaBoost Score** | **Approximate Refund** |
-        | --- | --- |
-        | 10,000 | 25% (Minimum Refund Value) |
-        | 100,000 | 60% |
-        | 500,000 | 85% |
-        | 1,000,000 | 95% (Maximum Refund Value) |
+where `x` is the ParaBoostScore. The refund levels based on this formula are as follows:
+
+| **ParaBoost Score** | **Approximate Refund** |
+| --- | --- |
+| 10,000 | 25% (Minimum Refund Value) |
+| 100,000 | 60% |
+| 500,000 | 85% |
+| 1,000,000 | 95% (Maximum Refund Value) |
 2. **Determine the total gas in $PSP paid by the user for each transaction at the time of execution:**
     - Collect all transactions done using the Augustus V6.2 and ParaSwap Delta contract sets on the Ethereum mainnet within the specified epoch.
     - Identify the amount of gas used for each transaction.
     - Determine the USD amount paid by the user for gas at the time each transaction was executed.
     - Retrieve the PSP price at the time of each transaction.
     - Compute the PSP amount required for refunding each transaction using the formula:
-    
-    $$
+```math
     PSP \, \text{to Refund}_{i,n} = \frac{\text{USD used for gas}_{i,n} \times \text{Refund Percentage}_{i,n}}{\text{PSP price}_n}
-    $$
+```
     
 3. **Generate Gas Refund Transactions**:
     - Calculate the total PSP amount to refund for each user by adding up the PSP refund amount of each transaction previously calculated.
