@@ -1,0 +1,27 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+model Event {
+  orderHash       String   @id @unique
+  name            String
+  type            String // Delta or V5
+  owner           String
+  beneficiary     String
+  srcToken        String
+  destToken       String
+  srcAmount       String
+  destAmount      String
+  returnAmount    String
+  protocolFee     String
+  partnerFee      String
+  blockNumber     String
+  transactionHash String
+  blockTimestamp  DateTime
+  gasUsed         String
+}
