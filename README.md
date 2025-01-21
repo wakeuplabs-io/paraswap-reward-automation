@@ -1,4 +1,4 @@
-#ParaSwap Reward Automation
+# ParaSwap Reward Automation
 
 ## Introduction
 
