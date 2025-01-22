@@ -1,0 +1,29 @@
+{
+  "name": "paraswap-reward-automation",
+  "version": "1.0.0",
+  "description": "## Introduction",
+  "type": "module",
+  "directories": {
+    "doc": "docs"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "fetch:delta": "tsx ./src/index.ts",
+    "db:generate": "prisma generate",
+    "db:migrate": "prisma migrate dev"
+  },
+  "author": "WakeUp Labs",
+  "license": "ISC",
+  "devDependencies": {
+    "prettier": "^3.4.2",
+    "prisma": "^6.2.1",
+    "typescript": "^5.7.3"
+  },
+  "dependencies": {
+    "@prisma/client": "^6.2.1",
+    "dayjs": "^1.11.13",
+    "dotenv": "^16.4.7",
+    "tsx": "^4.19.2",
+    "viem": "^2.22.10"
+  }
+}
