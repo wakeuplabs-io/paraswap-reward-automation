@@ -18,5 +18,17 @@ CREATE TABLE "Event" (
     "gasUsed" TEXT NOT NULL
 );
 
+-- CreateTable
+CREATE TABLE "sePSP2Event" (
+    "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "chain" TEXT NOT NULL,
+    "type" TEXT NOT NULL,
+    "user" TEXT NOT NULL,
+    "amount" TEXT NOT NULL,
+    "transactionHash" TEXT NOT NULL,
+    "blockNumber" TEXT NOT NULL,
+    "blockTimestamp" DATETIME NOT NULL
+);
+
 -- CreateIndex
 CREATE UNIQUE INDEX "Event_orderHash_key" ON "Event"("orderHash");
