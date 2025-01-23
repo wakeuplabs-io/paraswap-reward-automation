@@ -25,3 +25,14 @@ model Event {
   blockTimestamp  DateTime
   gasUsed         String
 }
+
+model sePSP2Event {
+  id              Int      @id @default(autoincrement())
+  chain           String
+  type            String
+  user            String
+  amount          String
+  transactionHash String
+  blockNumber     String
+  blockTimestamp  DateTime
+}

@@ -6,7 +6,6 @@ import {
   createPublicClient,
   hexToBigInt,
   http,
-  parseAbiItem,
 } from 'viem';
 import { mainnet } from 'viem/chains';
 
@@ -32,7 +31,7 @@ export class EventFetcher {
   }
 
   async fetchEvents(eventName: string, fromBlock: bigint, toBlock: bigint) {
-    const step = 1000n; // Block range per request
+    const step = 10000n; // Block range per request
     let currentFromBlock = fromBlock;
     let events: any[] = [];
 
@@ -68,7 +67,7 @@ export class EventFetcher {
   }
 
   async fetchLogs(eventName: string, fromBlock: bigint, toBlock: bigint) {
-    const step = 1000n; // Block range per request
+    const step = 10000n; // Block range per request
     let currentFromBlock = fromBlock;
     let events: any[] = [];
 
