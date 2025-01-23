@@ -12,7 +12,6 @@ import {
   PublicClient,
 } from 'viem';
 import { mainnet, optimism } from 'viem/chains';
-import { chainConfig } from 'viem/zksync';
 
 type ChainConfig = {
   chain: Chain;
@@ -20,7 +19,7 @@ type ChainConfig = {
   contractAddress: Address;
 };
 
-type SePSP2Event = Prisma.sePSP2EventCreateInput;
+type SePSP2EventToInsert = Omit<Prisma.sePSP2EventCreateInput, 'chain'>;
 
 function getChainConfig(chain: string): ChainConfig {
   switch (chain) {
@@ -68,30 +67,60 @@ async function fetchTransferEventsInRange(
   toBlock: bigint,
   client: PublicClient,
   contractAddress: Address
-): Promise<SePSP2Event[]> {
+): Promise<SePSP2EventToInsert[]> {
   try {
-    const logs = await client.getLogs({
-      address: contractAddress,
-      fromBlock: fromBlock,
-      toBlock: toBlock,
-      event: parseAbiItem(
-        'event Transfer(address indexed from, address indexed to, uint256 value)'
-      ),
-      args: {
-        to: walletAddress,
-      },
-    });
+    const abi = parseAbiItem(
+      'event Transfer(address indexed from, address indexed to, uint256 value)'
+    );
 
-    return logs.map((log) => ({
-      type: 'Transfer',
-      user: log.args.to!,
-      amount: log.args.value?.toString() ?? '0',
-      transactionHash: log.transactionHash,
-      blockNumber: log.blockNumber.toString(),
-      blockTimestamp: dayjs
-        .unix(Number(hexToBigInt((log as any)['blockTimestamp'])))
-        .toDate(),
-    }));
+    const [transfersIn, transfersOut] = await Promise.all([
+      client
+        .getLogs({
+          address: contractAddress,
+          fromBlock: fromBlock,
+          toBlock: toBlock,
+          event: abi,
+          args: {
+            to: walletAddress,
+          },
+        })
+        .then((logs) =>
+          logs.map((log) => ({
+            type: 'TransferIn',
+            user: log.args.to!,
+            amount: log.args.value?.toString() ?? '0',
+            transactionHash: log.transactionHash,
+            blockNumber: log.blockNumber.toString(),
+            blockTimestamp: dayjs
+              .unix(Number(hexToBigInt((log as any)['blockTimestamp'])))
+              .toDate(),
+          }))
+        ),
+      client
+        .getLogs({
+          address: contractAddress,
+          fromBlock: fromBlock,
+          toBlock: toBlock,
+          event: abi,
+          args: {
+            from: walletAddress,
+          },
+        })
+        .then((logs) =>
+          logs.map((log) => ({
+            type: 'TransferOut',
+            user: log.args.from!,
+            amount: log.args.value?.toString() ?? '0',
+            transactionHash: log.transactionHash,
+            blockNumber: log.blockNumber.toString(),
+            blockTimestamp: dayjs
+              .unix(Number(hexToBigInt((log as any)['blockTimestamp'])))
+              .toDate(),
+          }))
+        ),
+    ]);
+
+    return [...transfersIn, ...transfersOut];
   } catch (error) {
     console.error(
       `Error fetching Transfer events from block ${fromBlock} to ${toBlock}:`,
@@ -108,7 +137,7 @@ async function fetchWithdrawEventsInRange(
   toBlock: bigint,
   client: PublicClient,
   contractAddress: Address
-): Promise<SePSP2Event[]> {
+): Promise<SePSP2EventToInsert[]> {
   try {
     const logs = await client.getLogs({
       address: contractAddress,
@@ -149,7 +178,7 @@ async function fetchEvents(
   client: PublicClient,
   contractAddress: Address,
   cooldown: number
-): Promise<SePSP2Event[]> {
+): Promise<SePSP2EventToInsert[]> {
   const chunkSize = 10000n; // 10k blocks per chunk
   let currentBlock = startBlock;
   const transferEvents = [];
@@ -242,7 +271,7 @@ async function getUsersWithOrders(): Promise<Address[]> {
   const users = await getUsersWithOrders();
   console.log('Users with orders:', users.length);
   let totalProcessed = 0;
-  let allEvents: SePSP2Event[] = [];
+  let allEvents: SePSP2EventToInsert[] = [];
   const chunkSize = 1000;
   for (let i = 0; i < users.length; i += chunkSize) {
     const chunk = users.slice(i, i + chunkSize);
