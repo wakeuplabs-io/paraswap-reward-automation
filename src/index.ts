@@ -12,8 +12,8 @@ const prisma = new PrismaClient();
     'event OrderSettled(address indexed owner, address indexed beneficiary, address srcToken, address destToken, uint256 srcAmount, uint256 destAmount, uint256 returnAmount, uint256 protocolFee, uint256 partnerFee, bytes32 indexed orderHash)';
 
   const eventName = 'OrderSettled'; // Replace with your event name
-  const fromBlock = 21490080n; // Replace with your desired starting block
-  const toBlock = 21674808n; // Replace with your desired ending block
+  const toBlock = 21683472n; // Replace with your desired ending block
+  const fromBlock = 21482925n; // Replace with your desired starting block
 
   const eventFetcher = new EventFetcher({
     contractAddress,

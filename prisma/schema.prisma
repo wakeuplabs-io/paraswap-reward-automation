@@ -36,3 +36,15 @@ model sePSP2Event {
   blockNumber     String
   blockTimestamp  DateTime
 }
+
+model UserEpochBalance {
+  id            Int      @id @default(autoincrement())
+  user          String
+  epoch         Int
+  from          DateTime
+  to            DateTime
+  sePSP2Balance String
+  pspBalance    String
+  wethBalance   String
+  eventsIds     String
+}

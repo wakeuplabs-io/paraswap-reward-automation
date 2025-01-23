@@ -30,5 +30,18 @@ CREATE TABLE "sePSP2Event" (
     "blockTimestamp" DATETIME NOT NULL
 );
 
+-- CreateTable
+CREATE TABLE "UserEpochBalance" (
+    "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "user" TEXT NOT NULL,
+    "epoch" INTEGER NOT NULL,
+    "from" DATETIME NOT NULL,
+    "to" DATETIME NOT NULL,
+    "sePSP2Balance" TEXT NOT NULL,
+    "pspBalance" TEXT NOT NULL,
+    "wethBalance" TEXT NOT NULL,
+    "eventsIds" TEXT NOT NULL
+);
+
 -- CreateIndex
 CREATE UNIQUE INDEX "Event_orderHash_key" ON "Event"("orderHash");
