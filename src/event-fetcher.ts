@@ -32,7 +32,7 @@ const FINAL_BLOCK = 21690635; // Replace with your final block Jan 23-2025 11:59
 const INITIAL_BLOCK = 21683472; // Replace with your initial block Jan 23-2025 12:00:00 AM
 const CHUNK_SIZE = 1000;
 const BATCH_SIZE = 200;
-const ALCHEMY_API_KEY = 'JgYFwxoBCCCO8RKQfvZlPtuGL3geUa-g';
+const ALCHEMY_API_KEY = '<API-KEY>';
 const ALCHEMY_RPC_URL = `https://eth-mainnet.g.alchemy.com/v2/${ALCHEMY_API_KEY}`; // Replace with your Alchemy API key
 
 const prismaClient = new PrismaClient();
