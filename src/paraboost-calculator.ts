@@ -86,6 +86,7 @@ function calculateBalances(sePSP2Balance: bigint): {
   pspBalance: bigint;
   wethBalance: bigint;
 } {
+  //TODO: CHECK IF RATIO IS CORRECT
   const convertedSepsp2Balance =
     Number(BigInt(sePSP2Balance)) / 10 ** TOKEN_DECIMALS;
   const pspBalance = BigInt(
@@ -96,21 +97,6 @@ function calculateBalances(sePSP2Balance: bigint): {
   );
 
   return { sePSP2Balance, pspBalance, wethBalance };
-}
-
-async function saveEpochBalances(epochBalances: Map<number, UserEpochData>) {
-  return prisma.userEpochBalance.createMany({
-    data: Array.from(epochBalances.values()).map((epochBalance) => ({
-      user: epochBalance.user,
-      epoch: 0, //TODO complete with proper transanction
-      from: epochBalance.epoch.from,
-      to: epochBalance.epoch.to,
-      sePSP2Balance: epochBalance.sePSP2Balance.toString(),
-      pspBalance: epochBalance.pspBalance.toString(),
-      wethBalance: epochBalance.wethBalance.toString(),
-      eventsIds: epochBalance.sePSP2EventsId.join(','),
-    })),
-  });
 }
 
 function calculateEpochsBalances(
@@ -167,7 +153,49 @@ function calculateEpochsBalances(
   return userEpochMap;
 }
 
-async function calculateParaboost(user: string, epochs: Epoch[]) {
+async function saveEpochBalances(epochBalances: Map<number, UserEpochData>) {
+  return prisma.userEpochBalance.createMany({
+    data: Array.from(epochBalances.values()).map((epochBalance) => ({
+      user: epochBalance.user,
+      epoch: 0, //TODO complete with proper transanction
+      from: epochBalance.epoch.from,
+      to: epochBalance.epoch.to,
+      sePSP2Balance: epochBalance.sePSP2Balance.toString(),
+      pspBalance: epochBalance.pspBalance.toString(),
+      wethBalance: epochBalance.wethBalance.toString(),
+      eventsIds: epochBalance.sePSP2EventsId.join(','),
+    })),
+  });
+}
+
+//Follows the formula: https://gov.paraswap.network/t/pip-53-streamlining-of-the-staked-psp-incentive-system/1813
+function getParaBoost(userEpochBalances: UserEpochData[]): number {
+  //sort Epochs by date desc
+  userEpochBalances.sort((a, b) =>
+    // no need to check if dates are equal, it will never happen
+    dayjs(b.epoch.from).isAfter(a.epoch.from) ? 1 : -1
+  );
+
+  let totalEpochWithMinPSPCount = 0;
+  for (const userEpochBalance of userEpochBalances) {
+    if (userEpochBalance.pspBalance > MIN_PSP_BALANCE) {
+      totalEpochWithMinPSPCount++;
+      continue;
+    }
+
+    //stop when an epoch with minPSP or less is found
+    break;
+  }
+
+  if (totalEpochWithMinPSPCount === 0) {
+    return 0;
+  }
+
+  const paraBoostPercentage = (totalEpochWithMinPSPCount + 1) * 0.1;
+  return paraBoostPercentage > 0.7 ? 0.7 : paraBoostPercentage;
+}
+
+async function calculateParaBoost(user: string, epochs: Epoch[]) {
   console.log(`Calculating paraboost for user ${user}`);
   //get user's sePSP2 balance
   const userLastSePSP2Balance = await readUserSePSP2Balance(user);
@@ -181,8 +209,19 @@ async function calculateParaboost(user: string, epochs: Epoch[]) {
     userSePSP2Events
   );
 
-  //save epoch balances in DB
-  await saveEpochBalances(userEpochBalances);
+  const paraBoost = getParaBoost(Array.from(userEpochBalances.values()));
+
+  await Promise.all([
+    //save epoch balances in DB
+    saveEpochBalances(userEpochBalances),
+    prisma.userParaBoost.create({
+      data: {
+        user,
+        paraBoost,
+        lastCalculated: CYCLE_END.toDate(),
+      },
+    }),
+  ]);
 
   console.log(`Finished calculating paraboost for user ${user}`);
 }
@@ -207,8 +246,9 @@ async function calculateParaboost(user: string, epochs: Epoch[]) {
     })
     .then((users) => users.map((user) => user.user));
 
-  console.log(`Calculating paraboost for ${users.length} users`);
+  console.log(`Calculating ParaBoost for ${users.length} users`);
 
-  await Promise.all(users.map((user) => calculateParaboost(user, epochs)));
+  await Promise.all(users.map((user) => calculateParaBoost(user, epochs)));
+
   console.log('done');
 })();

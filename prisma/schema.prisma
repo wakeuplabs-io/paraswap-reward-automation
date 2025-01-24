@@ -48,3 +48,10 @@ model UserEpochBalance {
   wethBalance   String
   eventsIds     String
 }
+
+model UserParaBoost {
+  id             Int      @id @default(autoincrement())
+  user           String
+  paraBoost      Float
+  lastCalculated DateTime
+}
