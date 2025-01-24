@@ -1,4 +1,5 @@
-// Import the necessary modules from viem
+//TODO: IMPROVE THIS SCRIPT USING ALCHEMY BATCH REQUESTS
+
 import { Prisma, PrismaClient } from '@prisma/client';
 import dayjs from 'dayjs';
 import {
@@ -10,13 +11,18 @@ import {
   http,
   parseAbiItem,
   PublicClient,
+  Transport,
 } from 'viem';
 import { mainnet, optimism } from 'viem/chains';
+
+const ALCHEMY_API_KEY = '<API-KEY>';
+const ALCHEMY_OP_RPC_URL = `https://opt-mainnet.g.alchemy.com/v2/${ALCHEMY_API_KEY}`; // Replace with your Alchemy API key
 
 type ChainConfig = {
   chain: Chain;
   name: string;
   contractAddress: Address;
+  transport?: Transport;
 };
 
 type SePSP2EventToInsert = Omit<Prisma.sePSP2EventCreateInput, 'chain'>;
@@ -34,6 +40,7 @@ function getChainConfig(chain: string): ChainConfig {
         chain: optimism,
         name: 'optimism',
         contractAddress: '0x26Ee65874f5DbEfa629EB103E7BbB2DEAF4fB2c8', // sePSP2 - optimism https://optimistic.etherscan.io/address/0x26Ee65874f5DbEfa629EB103E7BbB2DEAF4fB2c8
+        transport: http(ALCHEMY_OP_RPC_URL),
       };
     default:
       throw new Error(`Unknown chain: ${chain}`);
@@ -239,12 +246,12 @@ async function fetchEvents(
 async function getUsersWithOrders(): Promise<Address[]> {
   return prisma.event
     .findMany({
-      distinct: ['beneficiary'],
+      distinct: ['user'],
       select: {
-        beneficiary: true,
+        user: true,
       },
     })
-    .then((users) => users.map((user) => getAddress(user.beneficiary)));
+    .then((events) => events.map((event) => getAddress(event.user)));
 }
 
 // Example usage
@@ -259,43 +266,75 @@ async function getUsersWithOrders(): Promise<Address[]> {
   // Initialize the viem client
   const client = createPublicClient({
     chain: chainConfig.chain,
-    transport: http(),
+    transport: chainConfig.transport ?? http(),
   });
 
-  const startBlock = 20286706n; // 7 epochs before the end block, each epoch is 28 days
-  const endBlock = 21683472n; // Replace with the ending block number
-  // const startBlock = endBlock - 100000n;
+  let startBlock = 20292435n; // 7 epochs before the end block, each epoch is 28 days
+  const endBlock = 21696247n; // Replace with the ending block number
+  // let startBlock = endBlock - 100000n;
+
+  // try to fetch the last block number from the DB
+  const lastBlock = await prisma.metadata.findFirst({
+    where: {
+      type: 'lastBlock',
+      name: `SEPSP2_${chain.toUpperCase()}_LAST_BLOCK`,
+    },
+    orderBy: {
+      createdAt: 'desc',
+    },
+  });
+
+  const lastProcessedBlock = lastBlock?.value && Number(lastBlock?.value);
+
+  //TODO: IMPROVE THIS LOGIC
+  if (lastProcessedBlock && lastProcessedBlock >= endBlock) {
+    console.log(`Last processed block is ${lastProcessedBlock}, up to date...`);
+    return;
+  }
+
+  startBlock = BigInt(lastProcessedBlock ?? startBlock);
 
   // retrieve all users that have an order
-  console.log('Retrieving users with orders...');
+  console.log(
+    `Retrieving users with orders from block ${startBlock} to ${endBlock}...`
+  );
   const users = await getUsersWithOrders();
   console.log('Users with orders:', users.length);
+
   let totalProcessed = 0;
-  let allEvents: SePSP2EventToInsert[] = [];
   const chunkSize = 1000;
   for (let i = 0; i < users.length; i += chunkSize) {
     const chunk = users.slice(i, i + chunkSize);
-    console.log('chunk', chunk.length);
     const events = await fetchEvents(
       chunk,
       startBlock,
       endBlock,
       client,
       chainConfig.contractAddress,
-      chainConfig.name === 'mainnet' ? 0 : 5000
+      0
     );
     totalProcessed += chunk.length;
-    allEvents = allEvents.concat(events);
     console.log(`Processed ${totalProcessed}/${users.length} users`);
+
+    console.log('Total events to insert:', events.length);
+    await prisma.sePSP2Event.createMany({
+      data: events.map((event) => ({
+        ...event,
+        chain: chainConfig.name,
+      })),
+    });
+
+    console.log('Events saved');
   }
 
-  console.log('Total events to insert:', allEvents.length);
-  await prisma.sePSP2Event.createMany({
-    data: allEvents.map((event) => ({
-      ...event,
-      chain: chainConfig.name,
-    })),
+  console.log('Saving last block number to DB...');
+  await prisma.metadata.create({
+    data: {
+      type: 'lastBlock',
+      name: `SEPSP2_${chain.toUpperCase()}_LAST_BLOCK`,
+      value: endBlock.toString(),
+    },
   });
 
-  console.log('done');
+  console.log('Done');
 })();

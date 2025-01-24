@@ -10,7 +10,7 @@
     "test": "echo \"Error: no test specified\" && exit 1",
     "fetch:delta": "tsx ./src/index.ts",
     "fetch:events": "tsx ./src/event-fetcher.ts",
-    "process:sepsp2": "tsx ./src/sepsp2-processor.ts",
+    "fetch:sepsp2": "tsx ./src/sepsp2-fetcher.ts",
     "calculate-paraboost": "tsx ./src/paraboost-calculator.ts",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev"
