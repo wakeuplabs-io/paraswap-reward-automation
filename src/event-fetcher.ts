@@ -27,34 +27,28 @@ type Block = {
 
 const AUGUSTUS_CONTRACT_ADDRESS = '0x6a000f20005980200259b80c5102003040001068'; // Augustus v6.2 Mainnet address - https://etherscan.io/address/0x6a000f20005980200259b80c5102003040001068
 const DELTA_CONTRACT_ADDRESS = '0x0000000000bbf5c5fd284e657f01bd000933c96d'; // Augustus Delta V2 Mainnet address - https://etherscan.io/address/0x0000000000bbf5c5fd284e657f01bd000933c96d
-const FINAL_BLOCK = 21690635; // Replace with your final block Jan 23-2025 11:59:49 PM
-// const INITIAL_BLOCK = 21690635 - 100; // Replace with your final block Jan 23-2025 11:59:49 PM
-const INITIAL_BLOCK = 21683472; // Replace with your initial block Jan 23-2025 12:00:00 AM
+const FINAL_BLOCK = 21626160;
+const INITIAL_BLOCK = 21468618;
 const CHUNK_SIZE = 1000;
 const BATCH_SIZE = 200;
-const ALCHEMY_API_KEY = '<API-KEY>';
+const ALCHEMY_API_KEY = 'JgYFwxoBCCCO8RKQfvZlPtuGL3geUa-g';
 const ALCHEMY_RPC_URL = `https://eth-mainnet.g.alchemy.com/v2/${ALCHEMY_API_KEY}`; // Replace with your Alchemy API key
 
 const prismaClient = new PrismaClient();
 
 // Function to send a batch request to Alchemy
 async function sendBatchRequests(batch: BatchRequest[]): Promise<Block[]> {
-  try {
-    const response = await fetch(ALCHEMY_RPC_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Accept: 'application/json',
-      },
-      body: JSON.stringify(batch),
-    });
+  const response = await fetch(ALCHEMY_RPC_URL, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Accept: 'application/json',
+    },
+    body: JSON.stringify(batch),
+  });
 
-    const results = await response.json();
-    return results.map((res) => res.result || null);
-  } catch (error) {
-    console.error('Batch request error:', error);
-    return [];
-  }
+  const results = await response.json();
+  return results.map((res) => res.result || null);
 }
 
 async function performBatchRequest(
@@ -73,29 +67,38 @@ async function performBatchRequest(
     ],
   }));
 
-  const blocks = await sendBatchRequests(batch);
-
-  return blocks
-    .filter((block) => block && block.receipts) // Filter out null blocks or missing data
-    .flatMap((block) => block.receipts) // Flatten all transactions
-    .filter(
-      (tx) =>
-        tx.to &&
-        [
-          AUGUSTUS_CONTRACT_ADDRESS.toLowerCase(),
-          DELTA_CONTRACT_ADDRESS.toLowerCase(),
-        ].includes(tx.to.toLowerCase())
-    )
-    .map((tx) => ({
-      user: tx.from,
-      type:
-        tx.to.toLowerCase() === AUGUSTUS_CONTRACT_ADDRESS.toLowerCase()
-          ? 'Augustus'
-          : 'Delta',
-      gasUsed: hexToBigInt(tx.gasUsed as Hex).toString(),
-      transactionHash: tx.transactionHash,
-      blockNumber: hexToBigInt(tx.blockNumber as Hex).toString(),
-    }));
+  try {
+    const blocks = await sendBatchRequests(batch);
+    return blocks
+      .filter((block) => block && block.receipts) // Filter out null blocks or missing data
+      .flatMap((block) => block.receipts) // Flatten all transactions
+      .filter(
+        (tx) =>
+          tx.to &&
+          [
+            AUGUSTUS_CONTRACT_ADDRESS.toLowerCase(),
+            DELTA_CONTRACT_ADDRESS.toLowerCase(),
+          ].includes(tx.to.toLowerCase())
+      )
+      .map((tx) => ({
+        user: tx.from,
+        type:
+          tx.to.toLowerCase() === AUGUSTUS_CONTRACT_ADDRESS.toLowerCase()
+            ? 'Augustus'
+            : 'Delta',
+        gasUsed: hexToBigInt(tx.gasUsed as Hex).toString(),
+        transactionHash: tx.transactionHash,
+        blockNumber: hexToBigInt(tx.blockNumber as Hex).toString(),
+      }));
+  } catch (error) {
+    console.log(
+      'Failed batch request:',
+      batchBlockNumbers[0],
+      batchBlockNumbers[batchBlockNumbers.length - 1]
+    );
+    console.error('Error:', error);
+    return [];
+  }
 }
 
 // Function to retrieve transactions for a range of blocks using batch requests
@@ -108,10 +111,9 @@ async function getTransactionsForBlockRange(
     (_, i) => startBlock + i
   );
 
-  // let transactions: AugustusTransaction[] = [];
-  // let transactions: AugustusEvent[] = [];
-
   const batchRequests = [];
+
+  console.log('Last block to fetch:', blockNumbers[blockNumbers.length - 1]);
 
   // Split blockNumbers into batches of BATCH_SIZE
   for (let i = 0; i < blockNumbers.length; i += BATCH_SIZE) {
@@ -154,11 +156,18 @@ async function getContractTransactions(startBlock: number, endBlock: number) {
   );
 
   // console.log(chunkRanges);
+  let totalTransactionsSaved = 0;
 
   for (const [startBlock, endBlock] of chunkRanges) {
     console.log(`Fetching blocks from ${startBlock} to ${endBlock}...`);
-    await getTransactionsForBlockRange(startBlock, endBlock);
+    const blockRangeTransactions = await getTransactionsForBlockRange(
+      startBlock,
+      endBlock
+    );
+    totalTransactionsSaved += blockRangeTransactions.length;
   }
+
+  console.log(`Total transactions saved: ${totalTransactionsSaved}`);
 }
 
 // Execute the script
@@ -183,17 +192,20 @@ async function getContractTransactions(startBlock: number, endBlock: number) {
       return;
     }
 
-    const startBlock = lastProcessedBlock ?? INITIAL_BLOCK;
+    const startBlock = Number(lastProcessedBlock ?? INITIAL_BLOCK);
 
-    console.log(`Starting from block ${startBlock} - ${dayjs().toString()}`);
+    console.log(
+      `Starting from block ${startBlock} to block ${FINAL_BLOCK} - ${dayjs().toString()}`
+    );
+    console.log('Total blocks to fetch:', FINAL_BLOCK - startBlock + 1);
 
-    await getContractTransactions(Number(startBlock), FINAL_BLOCK);
+    await getContractTransactions(startBlock, FINAL_BLOCK);
     console.log('Saving last block number to DB...');
     await prismaClient.metadata.create({
       data: {
         type: 'lastBlock',
         name: 'EVENTS_LAST_BLOCK',
-        value: FINAL_BLOCK.toString(),
+        value: (FINAL_BLOCK + 1).toString(),
       },
     });
     console.log(`Done - ${dayjs().toString()}`);
