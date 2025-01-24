@@ -27,11 +27,11 @@ type Block = {
 
 const AUGUSTUS_CONTRACT_ADDRESS = '0x6a000f20005980200259b80c5102003040001068'; // Augustus v6.2 Mainnet address - https://etherscan.io/address/0x6a000f20005980200259b80c5102003040001068
 const DELTA_CONTRACT_ADDRESS = '0x0000000000bbf5c5fd284e657f01bd000933c96d'; // Augustus Delta V2 Mainnet address - https://etherscan.io/address/0x0000000000bbf5c5fd284e657f01bd000933c96d
-const FINAL_BLOCK = 21626160;
+const FINAL_BLOCK = 21696247;
 const INITIAL_BLOCK = 21468618;
 const CHUNK_SIZE = 1000;
 const BATCH_SIZE = 200;
-const ALCHEMY_API_KEY = 'JgYFwxoBCCCO8RKQfvZlPtuGL3geUa-g';
+const ALCHEMY_API_KEY = 'API-KEY';
 const ALCHEMY_RPC_URL = `https://eth-mainnet.g.alchemy.com/v2/${ALCHEMY_API_KEY}`; // Replace with your Alchemy API key
 
 const prismaClient = new PrismaClient();
