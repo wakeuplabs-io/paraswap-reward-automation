@@ -262,8 +262,8 @@ async function getUsersWithOrders(): Promise<Address[]> {
     transport: http(),
   });
 
-  const startBlock = 20265219n; // 7 epochs before the end block, each epoch is 28 days
-  const endBlock = 21674808n; // Replace with the ending block number
+  const startBlock = 20286706n; // 7 epochs before the end block, each epoch is 28 days
+  const endBlock = 21683472n; // Replace with the ending block number
   // const startBlock = endBlock - 100000n;
 
   // retrieve all users that have an order
