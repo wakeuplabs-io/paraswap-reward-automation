@@ -24,15 +24,15 @@ model Metadata {
   createdAt DateTime @default(now())
 }
 
-model sePSP2Event {
-  id              Int      @id @default(autoincrement())
+model SePSP2Event {
+  id              Int       @id @default(autoincrement())
   chain           String
   type            String
   user            String
   amount          String
   transactionHash String
   blockNumber     String
-  blockTimestamp  DateTime
+  blockTimestamp  DateTime?
 }
 
 model UserEpochBalance {
