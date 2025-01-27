@@ -8,22 +8,20 @@ datasource db {
 }
 
 model Event {
-  orderHash       String   @id @unique
-  name            String
-  type            String // Delta or V5
-  owner           String
-  beneficiary     String
-  srcToken        String
-  destToken       String
-  srcAmount       String
-  destAmount      String
-  returnAmount    String
-  protocolFee     String
-  partnerFee      String
+  type            String // Delta or Augustus
+  user            String
   blockNumber     String
-  transactionHash String
-  blockTimestamp  DateTime
+  transactionHash String   @id @unique
   gasUsed         String
+  createdAt       DateTime @default(now())
+}
+
+model Metadata {
+  id        Int      @id @default(autoincrement())
+  type      String
+  name      String
+  value     String
+  createdAt DateTime @default(now())
 }
 
 model sePSP2Event {
