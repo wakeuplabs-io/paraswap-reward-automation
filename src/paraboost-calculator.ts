@@ -5,7 +5,7 @@ import sePSP2Abi from './abis/sePSP2.json';
 
 const TOKEN_DECIMALS = 18;
 const MIN_PSP_BALANCE = BigInt(60000 * 10 ** TOKEN_DECIMALS);
-const ALCHEMY_API_KEY = 'JgYFwxoBCCCO8RKQfvZlPtuGL3geUa-g';
+const ALCHEMY_API_KEY = 'API_KEY';
 const ALCHEMY_MAINNET_RPC_URL = `https://eth-mainnet.g.alchemy.com/v2/${ALCHEMY_API_KEY}`; // Replace with your Alchemy API key
 const ALCHEMY_OP_RPC_URL = `https://opt-mainnet.g.alchemy.com/v2/${ALCHEMY_API_KEY}`; // Replace with your Alchemy API key
 
