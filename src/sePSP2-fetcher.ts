@@ -1,3 +1,5 @@
+//TODO: REWRITE THIS SCRIPT BATCHING REQUEST TO GET MORE EVENTS IN ONE REQUEST TO ALCHEMY
+
 // Import the necessary modules from viem
 import { Prisma, PrismaClient } from '@prisma/client';
 import dayjs from 'dayjs';
@@ -10,16 +12,24 @@ import {
   http,
   parseAbiItem,
   PublicClient,
+  Transport,
 } from 'viem';
 import { mainnet, optimism } from 'viem/chains';
+
+const ALCHEMY_API_KEY = 'API_KEY';
+const ALCHEMY_MAINNET_RPC_URL = `https://eth-mainnet.g.alchemy.com/v2/${ALCHEMY_API_KEY}`; // Replace with your Alchemy API key
+const ALCHEMY_OP_RPC_URL = `https://opt-mainnet.g.alchemy.com/v2/${ALCHEMY_API_KEY}`; // Replace with your Alchemy API key
 
 type ChainConfig = {
   chain: Chain;
   name: string;
   contractAddress: Address;
+  transport?: Transport;
+  endBlock: bigint;
+  startBlock?: bigint;
 };
 
-type SePSP2EventToInsert = Omit<Prisma.sePSP2EventCreateInput, 'chain'>;
+type SePSP2EventToInsert = Omit<Prisma.SePSP2EventCreateInput, 'chain'>;
 
 function getChainConfig(chain: string): ChainConfig {
   switch (chain) {
@@ -28,35 +38,23 @@ function getChainConfig(chain: string): ChainConfig {
         chain: mainnet,
         name: 'mainnet',
         contractAddress: '0x593F39A4Ba26A9c8ed2128ac95D109E8e403C485', // sePSP2 - mainnet https://etherscan.io/address/0x593F39A4Ba26A9c8ed2128ac95D109E8e403C485
+        transport: http(ALCHEMY_MAINNET_RPC_URL),
+        endBlock: 21713028n,
+        startBlock: 20207948n,
       };
     case 'optimism':
       return {
         chain: optimism,
         name: 'optimism',
         contractAddress: '0x26Ee65874f5DbEfa629EB103E7BbB2DEAF4fB2c8', // sePSP2 - optimism https://optimistic.etherscan.io/address/0x26Ee65874f5DbEfa629EB103E7BbB2DEAF4fB2c8
+        transport: http(ALCHEMY_OP_RPC_URL),
+        endBlock: 131196625n,
+        startBlock: 122096611n,
       };
     default:
       throw new Error(`Unknown chain: ${chain}`);
   }
 }
-
-// const transferEventAbi = parseAbiItem({
-//   type: 'event',
-//   name: 'Transfer',
-//   inputs: [
-//     { name: 'from', type: 'address', indexed: true },
-//     { name: 'to', type: 'address', indexed: true },
-//     { name: 'value', type: 'uint256', indexed: false },
-//   ],
-// });
-// const withdrawEventAbi = parseAbiItem({
-//   type: 'event',
-//   name: 'Withdraw',
-//   inputs: [
-//     { name: 'owner', type: 'address', indexed: true },
-//     { name: 'amount', type: 'uint256', indexed: false },
-//   ],
-// });
 
 const prisma = new PrismaClient();
 
@@ -91,9 +89,11 @@ async function fetchTransferEventsInRange(
             amount: log.args.value?.toString() ?? '0',
             transactionHash: log.transactionHash,
             blockNumber: log.blockNumber.toString(),
-            blockTimestamp: dayjs
-              .unix(Number(hexToBigInt((log as any)['blockTimestamp'])))
-              .toDate(),
+            blockTimestamp: (log as any)['blockTimestamp']
+              ? dayjs
+                  .unix(Number(hexToBigInt((log as any)['blockTimestamp'])))
+                  .toDate()
+              : null,
           }))
         ),
       client
@@ -113,9 +113,11 @@ async function fetchTransferEventsInRange(
             amount: log.args.value?.toString() ?? '0',
             transactionHash: log.transactionHash,
             blockNumber: log.blockNumber.toString(),
-            blockTimestamp: dayjs
-              .unix(Number(hexToBigInt((log as any)['blockTimestamp'])))
-              .toDate(),
+            blockTimestamp: (log as any)['blockTimestamp']
+              ? dayjs
+                  .unix(Number(hexToBigInt((log as any)['blockTimestamp'])))
+                  .toDate()
+              : null,
           }))
         ),
     ]);
@@ -157,9 +159,11 @@ async function fetchWithdrawEventsInRange(
       amount: log.args.amount?.toString() ?? '0',
       transactionHash: log.transactionHash,
       blockNumber: log.blockNumber.toString(),
-      blockTimestamp: dayjs
-        .unix(Number(hexToBigInt((log as any)['blockTimestamp'])))
-        .toDate(),
+      blockTimestamp: (log as any)['blockTimestamp']
+        ? dayjs
+            .unix(Number(hexToBigInt((log as any)['blockTimestamp'])))
+            .toDate()
+        : null,
     }));
   } catch (error) {
     console.error(
@@ -176,10 +180,10 @@ async function fetchEvents(
   startBlock: bigint,
   endBlock: bigint,
   client: PublicClient,
-  contractAddress: Address,
-  cooldown: number
+  contractAddress: Address
 ): Promise<SePSP2EventToInsert[]> {
   const chunkSize = 10000n; // 10k blocks per chunk
+  console.log(`Blocks Chunk Size: ${chunkSize}`);
   let currentBlock = startBlock;
   const transferEvents = [];
   const withdrawEvents = [];
@@ -225,12 +229,6 @@ async function fetchEvents(
     }
 
     currentBlock += chunkSize;
-
-    //wait 1s between chunks
-    if (cooldown > 0) {
-      console.log(`${cooldown}ms cooldown...`);
-      await new Promise((resolve) => setTimeout(resolve, cooldown));
-    }
   }
 
   return [...transferEvents, ...withdrawEvents];
@@ -239,12 +237,12 @@ async function fetchEvents(
 async function getUsersWithOrders(): Promise<Address[]> {
   return prisma.event
     .findMany({
-      distinct: ['beneficiary'],
+      distinct: ['user'],
       select: {
-        beneficiary: true,
+        user: true,
       },
     })
-    .then((users) => users.map((user) => getAddress(user.beneficiary)));
+    .then((users) => users.map((user) => getAddress(user.user)));
 }
 
 // Example usage
@@ -259,20 +257,44 @@ async function getUsersWithOrders(): Promise<Address[]> {
   // Initialize the viem client
   const client = createPublicClient({
     chain: chainConfig.chain,
-    transport: http(),
+    transport: chainConfig.transport ?? http(),
   });
 
-  const startBlock = 20286706n; // 7 epochs before the end block, each epoch is 28 days
-  const endBlock = 21683472n; // Replace with the ending block number
-  // const startBlock = endBlock - 100000n;
+  // try to fetch the last block number from the DB
+  const lastBlock = await prisma.metadata.findFirst({
+    where: {
+      type: 'lastBlock',
+      name: `SEPSP2_${chain.toUpperCase()}_LAST_BLOCK`,
+    },
+    orderBy: {
+      createdAt: 'desc',
+    },
+  });
+
+  const startBlock = lastBlock?.value
+    ? BigInt(Number(lastBlock?.value))
+    : chainConfig.startBlock;
+
+  const endBlock = chainConfig.endBlock;
+
+  if (!startBlock) {
+    console.log(`No initial block found, skipping...`);
+    return;
+  }
+
+  // //TODO: IMPROVE THIS LOGIC
+  if (startBlock && startBlock >= endBlock) {
+    console.log(`Last processed block is ${startBlock}, up to date...`);
+    return;
+  }
 
   // retrieve all users that have an order
   console.log('Retrieving users with orders...');
   const users = await getUsersWithOrders();
   console.log('Users with orders:', users.length);
   let totalProcessed = 0;
-  let allEvents: SePSP2EventToInsert[] = [];
   const chunkSize = 1000;
+  console.log(`Fetching sePSP2 events from ${startBlock} to ${endBlock}`);
   for (let i = 0; i < users.length; i += chunkSize) {
     const chunk = users.slice(i, i + chunkSize);
     console.log('chunk', chunk.length);
@@ -281,21 +303,29 @@ async function getUsersWithOrders(): Promise<Address[]> {
       startBlock,
       endBlock,
       client,
-      chainConfig.contractAddress,
-      chainConfig.name === 'mainnet' ? 0 : 5000
+      chainConfig.contractAddress
     );
     totalProcessed += chunk.length;
-    allEvents = allEvents.concat(events);
+    console.log('Total events to insert:', events.length);
+    await prisma.sePSP2Event.createMany({
+      data: events.map((event) => ({
+        ...event,
+        chain: chainConfig.name,
+      })),
+    });
+
+    console.log('Events saved');
     console.log(`Processed ${totalProcessed}/${users.length} users`);
   }
 
-  console.log('Total events to insert:', allEvents.length);
-  await prisma.sePSP2Event.createMany({
-    data: allEvents.map((event) => ({
-      ...event,
-      chain: chainConfig.name,
-    })),
+  console.log('Saving last block number to DB...');
+  await prisma.metadata.create({
+    data: {
+      type: 'lastBlock',
+      name: `SEPSP2_${chain.toUpperCase()}_LAST_BLOCK`,
+      value: endBlock.toString(),
+    },
   });
 
-  console.log('done');
+  console.log('Done');
 })();
