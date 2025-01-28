@@ -41,10 +41,13 @@ model UserEpochBalance {
   epoch         Int
   from          DateTime
   to            DateTime
+  fromBlock     String
+  toBlock       String
   sePSP2Balance String
   pspBalance    String
   wethBalance   String
   eventsIds     String
+  chain         String
 }
 
 model UserParaBoost {
