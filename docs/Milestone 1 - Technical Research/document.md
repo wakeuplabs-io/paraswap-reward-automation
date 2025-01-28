@@ -148,14 +148,15 @@ Here is an overview of the orders retrieval implementation:
        "srcToken": string,
        "destToken": string,
        "txHash": string,
-       "txGasUsed": string,
+       // right now we account for L1 rollup price (on optimism). If we only account for Mainnet from now on, then it's not applicable any more
+       "txGasUsed": string,        
        "date": string,
        "epoch": number
        "status": Enum,
        "sePSP1Balance": number,
        "sePSP2Balance": number,
        "poolingBoost": number,
-       "paraSwapScore": number,
+       "paraBoostScore": number,
        "gasToRefund": {
            "mainnet": number,
            "op": number
@@ -284,6 +285,16 @@ At the end of each period, a job will process all users registered in the `ParaS
    - Generate gas refund transactions for each user on the applicable networks.
    - Store the transaction details in the `UsersRefundTransactions` DynamoDB table with the following structure:
      ```jsx
+   
+     // will it be possible to have a view, where all the transactions eligible for refund, include ALL the fields -- the "raw" or "source" values at the time of txs (such as gasUsed, nativeTokenUSDPrice, sePSP1Wei, sePSP2Wei, stake_bpt_total_supply, bpt_psp_balance etc) combined with the "computed" values (like pspInSePSP2Wei, etc), that are derived from the first ones, so that each transaction eligible for redund can be located and verified in isolation?
+
+     // I'm thinking something like this: https://docs.google.com/spreadsheets/d/1wkfitLvmkwr7azpoGor8wtbWZtEHcgdD6bA73bfdsyw/edit?gid=1365866329#gid=1365866329
+     
+     // 
+     // 
+     // 
+     // 
+     // 
      {
          "address": string,
          "amount": string,
