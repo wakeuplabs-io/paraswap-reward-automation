@@ -1,27 +1,36 @@
-import { PrismaClient, sePSP2Event } from '@prisma/client';
-import dayjs from 'dayjs';
+import { PrismaClient, SePSP2Event } from '@prisma/client';
 import { createPublicClient, http } from 'viem';
-import { mainnet } from 'viem/chains';
+import { mainnet, optimism } from 'viem/chains';
 import sePSP2Abi from './abis/sePSP2.json';
 
 const TOKEN_DECIMALS = 18;
-const TOTAL_EPOCHS = 7;
-const EPOCH_DURATION = 28; // Duration of each epoch in days
-const CYCLE_END = dayjs(new Date());
-const CYCLE_START = CYCLE_END.subtract(TOTAL_EPOCHS * EPOCH_DURATION, 'day');
 const MIN_PSP_BALANCE = BigInt(60000 * 10 ** TOKEN_DECIMALS);
+const ALCHEMY_API_KEY = 'API_KEY';
+const ALCHEMY_MAINNET_RPC_URL = `https://eth-mainnet.g.alchemy.com/v2/${ALCHEMY_API_KEY}`; // Replace with your Alchemy API key
+const ALCHEMY_OP_RPC_URL = `https://opt-mainnet.g.alchemy.com/v2/${ALCHEMY_API_KEY}`; // Replace with your Alchemy API key
 
 const prisma = new PrismaClient();
 
-const client = createPublicClient({
+// Clients for Mainnet and Optimism
+const mainnetClient = createPublicClient({
   chain: mainnet,
-  transport: http(),
+  transport: http(ALCHEMY_MAINNET_RPC_URL),
+});
+
+const MAINNET_SEPSP2_ADDRESS = '0x593F39A4Ba26A9c8ed2128ac95D109E8e403C485';
+const OP_MAINNET_SEPSP2_ADDRESS = '0x26Ee65874f5DbEfa629EB103E7BbB2DEAF4fB2c8';
+
+const optimismClient = createPublicClient({
+  chain: optimism,
+  transport: http(ALCHEMY_OP_RPC_URL),
 });
 
 type Epoch = {
   number: number;
-  from: Date;
-  to: Date;
+  from: string;
+  to: string;
+  fromBlock: number;
+  toBlock: number;
 };
 
 type UserEpochData = {
@@ -31,34 +40,125 @@ type UserEpochData = {
   pspBalance: bigint;
   wethBalance: bigint;
   sePSP2EventsId: number[];
+  chain: 'mainnet' | 'optimism'; // Track the chain for each balance
 };
 
-const getPastEpochs = (): Epoch[] => {
-  const epochs = [];
+// Define the static epoch array with predefined block ranges for both chains
 
-  let currentEpochEnd = CYCLE_END;
-  let epochNumber = 1;
+const MAINNET_EPOCHS: Epoch[] = [
+  {
+    number: 26,
+    from: '2024-12-23T00:00:00.000Z',
+    fromBlock: 21461472,
+    to: '2025-01-20T00:00:00.000Z',
+    toBlock: 21661976,
+  },
+  {
+    number: 25,
+    from: '2024-11-24T00:00:00.000Z',
+    fromBlock: 21253883,
+    to: '2024-12-22T23:59:59.999Z',
+    toBlock: 21461471,
+  },
+  {
+    number: 24,
+    from: '2024-10-26T00:00:00.000Z',
+    fromBlock: 21046080,
+    to: '2024-11-23T23:59:59.999Z',
+    toBlock: 21253882,
+  },
+  {
+    number: 23,
+    from: '2024-09-27T00:00:00.000Z',
+    fromBlock: 20838232,
+    to: '2024-10-25T23:59:59.999Z',
+    toBlock: 21046079,
+  },
+  {
+    number: 22,
+    from: '2024-08-29T00:00:00.000Z',
+    fromBlock: 20630527,
+    to: '2024-09-26T23:59:59.999Z',
+    toBlock: 20838231,
+  },
+  {
+    number: 21,
+    from: '2024-07-31T00:00:00.000Z',
+    fromBlock: 20422809,
+    to: '2024-08-28T23:59:59.999Z',
+    toBlock: 20630526,
+  },
+  {
+    number: 20,
+    from: '2024-07-02T00:00:00.000Z',
+    fromBlock: 20215115,
+    to: '2024-07-30T23:59:59.999Z',
+    toBlock: 20422808,
+  },
+];
 
-  //process backwards
-  while (currentEpochEnd.isAfter(CYCLE_START)) {
-    const epochStart = currentEpochEnd.subtract(EPOCH_DURATION - 1, 'day');
-    epochs.push({
-      number: epochNumber,
-      from: epochStart.toDate(),
-      to: currentEpochEnd.toDate(),
-    });
-    currentEpochEnd = currentEpochEnd.subtract(EPOCH_DURATION, 'day');
-    epochNumber++;
-  }
+const OP_MAINNET_EPOCHS: Epoch[] = [
+  {
+    number: 26,
+    from: '2024-12-23T00:00:00.000Z',
+    fromBlock: 129699789,
+    to: '2025-01-20T00:00:00.000Z',
+    toBlock: 130866225,
+  },
+  {
+    number: 25,
+    from: '2024-11-24T00:00:00.000Z',
+    fromBlock: 128403815,
+    to: '2024-12-22T23:59:59.999Z',
+    toBlock: 129699788,
+  },
+  {
+    number: 24,
+    from: '2024-10-26T00:00:00.000Z',
+    fromBlock: 127151013,
+    to: '2024-11-23T23:59:59.999Z',
+    toBlock: 128403814,
+  },
+  {
+    number: 23,
+    from: '2024-09-27T00:00:00.000Z',
+    fromBlock: 125898227,
+    to: '2024-10-25T23:59:59.999Z',
+    toBlock: 127151012,
+  },
+  {
+    number: 22,
+    from: '2024-08-29T00:00:00.000Z',
+    fromBlock: 124645420,
+    to: '2024-09-26T23:59:59.999Z',
+    toBlock: 125898226,
+  },
+  {
+    number: 21,
+    from: '2024-07-31T00:00:00.000Z',
+    fromBlock: 123392614,
+    to: '2024-08-28T23:59:59.999Z',
+    toBlock: 124645419,
+  },
+  {
+    number: 20,
+    from: '2024-07-02T00:00:00.000Z',
+    fromBlock: 122139841,
+    to: '2024-07-30T23:59:59.999Z',
+    toBlock: 123392613,
+  },
+];
 
-  return epochs;
-};
-
-// Request balances from the sePSP2 contract for a given user
-async function readUserSePSP2Balance(user: string): Promise<bigint> {
+// Request balances from the sePSP2 contract for a given user on a specific chain
+async function readUserSePSP2Balance(
+  user: string,
+  chain: 'mainnet' | 'optimism'
+): Promise<bigint> {
+  const client = chain === 'mainnet' ? mainnetClient : optimismClient;
   const result = await client.readContract({
     abi: sePSP2Abi,
-    address: '0x593F39A4Ba26A9c8ed2128ac95D109E8e403C485', // sePSP2 - mainnet https://etherscan.io/address/0x593F39A4Ba26A9c8ed2128ac95D109E8e403C485
+    address:
+      chain === 'mainnet' ? MAINNET_SEPSP2_ADDRESS : OP_MAINNET_SEPSP2_ADDRESS,
     functionName: 'balanceOf',
     args: [user],
   });
@@ -66,17 +166,23 @@ async function readUserSePSP2Balance(user: string): Promise<bigint> {
   return result as bigint;
 }
 
-async function getUserSePSP2Events(user: string): Promise<sePSP2Event[]> {
+async function getUserSePSP2Events(
+  user: string,
+  fromBlock: number,
+  toBlock: number,
+  chain: 'mainnet' | 'optimism'
+): Promise<SePSP2Event[]> {
   return prisma.sePSP2Event.findMany({
     where: {
       user,
-      blockTimestamp: {
-        gte: CYCLE_START.toDate(),
-        lte: CYCLE_END.toDate(),
+      blockNumber: {
+        gte: fromBlock.toString(),
+        lte: toBlock.toString(),
       },
+      chain, // Filter events by chain
     },
     orderBy: {
-      blockTimestamp: 'desc',
+      blockNumber: 'desc',
     },
   });
 }
@@ -86,15 +192,16 @@ function calculateBalances(sePSP2Balance: bigint): {
   pspBalance: bigint;
   wethBalance: bigint;
 } {
-  //TODO: CHECK IF RATIO IS CORRECT
-  const convertedSepsp2Balance =
-    Number(BigInt(sePSP2Balance)) / 10 ** TOKEN_DECIMALS;
-  const pspBalance = BigInt(
-    convertedSepsp2Balance * 0.8 * 10 ** TOKEN_DECIMALS
-  );
-  const wethBalance = BigInt(
-    convertedSepsp2Balance * 0.2 * 10 ** TOKEN_DECIMALS
-  );
+  // TODO: CHECK IF RATIO IS CORRECT
+
+  const pspSePSP2Percetange = BigInt(0.8 * 10 ** TOKEN_DECIMALS);
+  const wethSePSP2Percentage = BigInt(0.2 * 10 ** TOKEN_DECIMALS);
+  const pspSePSP2ConvertionRatio = BigInt(0.11 * 10 ** TOKEN_DECIMALS);
+
+  const pspBalance =
+    (sePSP2Balance * pspSePSP2Percetange) / pspSePSP2ConvertionRatio;
+  const wethBalance =
+    (sePSP2Balance * wethSePSP2Percentage) / BigInt(10 ** TOKEN_DECIMALS);
 
   return { sePSP2Balance, pspBalance, wethBalance };
 }
@@ -103,17 +210,29 @@ function calculateEpochsBalances(
   user: string,
   epochs: Epoch[],
   lastSePSP2Balance: bigint,
-  userSePSP2Events: sePSP2Event[]
+  userSePSP2Events: SePSP2Event[],
+  chain: 'mainnet' | 'optimism'
 ): Map<number, UserEpochData> {
-  //create a map of epoch number to sePSP2 balance
   const userEpochMap = new Map<number, UserEpochData>();
+
+  //Add first epoch to the map
+  const balances = calculateBalances(lastSePSP2Balance);
+
+  userEpochMap.set(epochs[0].number, {
+    user,
+    epoch: epochs[0],
+    sePSP2Balance: balances.sePSP2Balance,
+    pspBalance: balances.pspBalance,
+    wethBalance: balances.wethBalance,
+    sePSP2EventsId: [],
+    chain, // Track the chain for this epoch balance
+  });
 
   let currentsePSP2Balance = lastSePSP2Balance;
   let eventIdx = 0;
 
-  //iterate over the epochs, down to the older one
-  for (const epoch of epochs) {
-    //iterate over the sePSP2 events until the beginning of the epoch
+  // Iterate over the epochs, starting from the most recent
+  for (const epoch of epochs.slice(1, epochs.length)) {
     const epochEntry: UserEpochData = {
       user,
       epoch,
@@ -121,32 +240,28 @@ function calculateEpochsBalances(
       pspBalance: BigInt(0),
       wethBalance: BigInt(0),
       sePSP2EventsId: [],
+      chain, // Track the chain for this epoch balance
     };
 
+    // Iterate over the sePSP2 events within the epoch's block range
     while (
       eventIdx < userSePSP2Events.length &&
-      userSePSP2Events[eventIdx].blockTimestamp > epoch.from &&
-      userSePSP2Events[eventIdx].blockTimestamp <= epoch.to
+      BigInt(userSePSP2Events[eventIdx].blockNumber) >= BigInt(epoch.fromBlock)
     ) {
       if (userSePSP2Events[eventIdx].type === 'TransferIn') {
-        // if the event is a transfer, we need to subtract the amount from the current balance
         currentsePSP2Balance -= BigInt(userSePSP2Events[eventIdx].amount);
       } else {
-        // if the event is a withdraw or a transfer from the user to another account, we need to add the amount to the current balance
         currentsePSP2Balance += BigInt(userSePSP2Events[eventIdx].amount);
       }
-      //save the event id
       epochEntry.sePSP2EventsId.push(userSePSP2Events[eventIdx].id);
       eventIdx++;
     }
 
-    //calculate the balances for the epoch
     const epochBalances = calculateBalances(currentsePSP2Balance);
     epochEntry.sePSP2Balance = epochBalances.sePSP2Balance;
     epochEntry.pspBalance = epochBalances.pspBalance;
     epochEntry.wethBalance = epochBalances.wethBalance;
 
-    //add the epoch to the map
     userEpochMap.set(epoch.number, epochEntry);
   }
 
@@ -157,33 +272,49 @@ async function saveEpochBalances(epochBalances: Map<number, UserEpochData>) {
   return prisma.userEpochBalance.createMany({
     data: Array.from(epochBalances.values()).map((epochBalance) => ({
       user: epochBalance.user,
-      epoch: 0, //TODO complete with proper transanction
+      epoch: epochBalance.epoch.number,
       from: epochBalance.epoch.from,
       to: epochBalance.epoch.to,
+      fromBlock: epochBalance.epoch.fromBlock.toString(),
+      toBlock: epochBalance.epoch.toBlock.toString(),
       sePSP2Balance: epochBalance.sePSP2Balance.toString(),
       pspBalance: epochBalance.pspBalance.toString(),
       wethBalance: epochBalance.wethBalance.toString(),
       eventsIds: epochBalance.sePSP2EventsId.join(','),
+      chain: epochBalance.chain, // Store the chain for each balance
     })),
   });
 }
 
-//Follows the formula: https://gov.paraswap.network/t/pip-53-streamlining-of-the-staked-psp-incentive-system/1813
 function getParaBoost(userEpochBalances: UserEpochData[]): number {
-  //sort Epochs by date desc
-  userEpochBalances.sort((a, b) =>
-    // no need to check if dates are equal, it will never happen
-    dayjs(b.epoch.from).isAfter(a.epoch.from) ? 1 : -1
+  // Combine balances from both chains for each epoch
+  const combinedBalances = new Map<number, UserEpochData>();
+
+  for (const balance of userEpochBalances) {
+    const epochNumber = balance.epoch.number;
+    if (combinedBalances.has(epochNumber)) {
+      // If the epoch already exists, add the balances
+      const existingBalance = combinedBalances.get(epochNumber)!;
+      existingBalance.sePSP2Balance += balance.sePSP2Balance;
+      existingBalance.pspBalance += balance.pspBalance;
+      existingBalance.wethBalance += balance.wethBalance;
+    } else {
+      // If the epoch doesn't exist, add it to the map
+      combinedBalances.set(epochNumber, { ...balance });
+    }
+  }
+
+  // Sort epochs by number (descending)
+  const sortedBalances = Array.from(combinedBalances.values()).sort(
+    (a, b) => b.epoch.number - a.epoch.number
   );
 
   let totalEpochWithMinPSPCount = 0;
-  for (const userEpochBalance of userEpochBalances) {
-    if (userEpochBalance.pspBalance > MIN_PSP_BALANCE) {
+  for (const balance of sortedBalances) {
+    if (balance.pspBalance > MIN_PSP_BALANCE) {
       totalEpochWithMinPSPCount++;
       continue;
     }
-
-    //stop when an epoch with minPSP or less is found
     break;
   }
 
@@ -191,34 +322,67 @@ function getParaBoost(userEpochBalances: UserEpochData[]): number {
     return 0;
   }
 
-  const paraBoostPercentage = (totalEpochWithMinPSPCount + 1) * 0.1;
-  return paraBoostPercentage > 0.7 ? 0.7 : paraBoostPercentage;
+  const paraBoostPercentage = (totalEpochWithMinPSPCount + 1) * 10;
+  return paraBoostPercentage > 70 ? 0.7 : paraBoostPercentage / 100;
 }
 
-async function calculateParaBoost(user: string, epochs: Epoch[]) {
+async function calculateParaBoost(user: string) {
   console.log(`Calculating paraboost for user ${user}`);
-  //get user's sePSP2 balance
-  const userLastSePSP2Balance = await readUserSePSP2Balance(user);
-  //get user's seSPS2 events
-  const userSePSP2Events = await getUserSePSP2Events(user);
-  //calculate user epoch balances
-  const userEpochBalances = calculateEpochsBalances(
+
+  // Fetch balances and events for both chains
+  const [mainnetBalance, optimismBalance] = await Promise.all([
+    readUserSePSP2Balance(user, 'mainnet'),
+    readUserSePSP2Balance(user, 'optimism'),
+  ]);
+
+  const [mainnetEvents, optimismEvents] = await Promise.all([
+    getUserSePSP2Events(
+      user,
+      MAINNET_EPOCHS[MAINNET_EPOCHS.length - 1].fromBlock,
+      MAINNET_EPOCHS[0].toBlock,
+      'mainnet'
+    ),
+    getUserSePSP2Events(
+      user,
+      OP_MAINNET_EPOCHS[OP_MAINNET_EPOCHS.length - 1].fromBlock,
+      OP_MAINNET_EPOCHS[0].toBlock,
+      'optimism'
+    ),
+  ]);
+
+  // Calculate epoch balances for both chains
+  const mainnetEpochBalances = calculateEpochsBalances(
     user,
-    epochs,
-    userLastSePSP2Balance,
-    userSePSP2Events
+    MAINNET_EPOCHS,
+    mainnetBalance,
+    mainnetEvents,
+    'mainnet'
   );
 
-  const paraBoost = getParaBoost(Array.from(userEpochBalances.values()));
+  const optimismEpochBalances = calculateEpochsBalances(
+    user,
+    OP_MAINNET_EPOCHS,
+    optimismBalance,
+    optimismEvents,
+    'optimism'
+  );
 
+  // Combine balances from both chains for ParaBoost calculation
+  const allEpochBalances = [
+    ...mainnetEpochBalances.values(),
+    ...optimismEpochBalances.values(),
+  ];
+  const paraBoost = getParaBoost(allEpochBalances);
+
+  // Save epoch balances for both chains
   await Promise.all([
-    //save epoch balances in DB
-    saveEpochBalances(userEpochBalances),
+    saveEpochBalances(mainnetEpochBalances),
+    saveEpochBalances(optimismEpochBalances),
     prisma.userParaBoost.create({
       data: {
         user,
         paraBoost,
-        lastCalculated: CYCLE_END.toDate(),
+        lastCalculated: new Date(),
       },
     }),
   ]);
@@ -226,16 +390,8 @@ async function calculateParaBoost(user: string, epochs: Epoch[]) {
   console.log(`Finished calculating paraboost for user ${user}`);
 }
 
-/**
- * Calculate the ParaBoost rewards for a given date for a given user
- * In order to be more efficient, we will be checking users that interacted with sePSP2 in the last 7 epochs instead of checking all users that made a swap in the platform
- * We will be storing the psp balance for each epoch in a separate table. The balance will be calculated by adding transfer and withdraw events from each epoch
- * Keep in mind that sePSP2 balance is composed of 80% of the psp balance and 20% of the eth balance
- */
 (async () => {
-  // calculate the epochs for a given date
   console.log('Calculating paraboost for users');
-  const epochs = getPastEpochs();
 
   const users = await prisma.sePSP2Event
     .findMany({
@@ -248,7 +404,7 @@ async function calculateParaBoost(user: string, epochs: Epoch[]) {
 
   console.log(`Calculating ParaBoost for ${users.length} users`);
 
-  await Promise.all(users.map((user) => calculateParaBoost(user, epochs)));
+  await Promise.all(users.map((user) => calculateParaBoost(user)));
 
   console.log('done');
 })();
