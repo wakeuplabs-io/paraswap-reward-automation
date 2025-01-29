@@ -123,9 +123,6 @@ async function performBatchRequest(
   try {
     const blocks = await sendBatchRequests(batch);
 
-    // cooldown 500 ms
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-
     const txs = blocks
       .filter((block) => block && block.transactions) // Filter out null blocks or missing data
       .flatMap((block) =>
@@ -144,6 +141,12 @@ async function performBatchRequest(
           }))
       );
 
+    if (txs.length === 0) {
+      return [];
+    }
+
+    // cooldown 500 ms
+    await new Promise((resolve) => setTimeout(resolve, 1000));
     //get the receipt request for each transaction
     const receipts = await getReceipts(txs);
 
