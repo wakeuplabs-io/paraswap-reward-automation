@@ -8,11 +8,20 @@ datasource db {
 }
 
 model Event {
+  transactionHash String   @id @unique
   type            String // Delta or Augustus
   user            String
-  blockNumber     String
-  transactionHash String   @id @unique
   gasUsed         String
+  gasPrice        String   @default("0")
+  ethUsdPrice     Int      @default(0)
+  pspUsdPrice     Int      @default(0)
+  totalPSP        String   @default("0")
+  sePSP1Amount    String   @default("0")
+  sePSP2Amount    String   @default("0")
+  input           String   @default("")
+  decodedFunction String   @default("")
+  blockNumber     String
+  blockTimestamp  Int      @default(0)
   createdAt       DateTime @default(now())
 }
 
