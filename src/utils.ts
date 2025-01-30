@@ -24,14 +24,56 @@ export function getEpochsDates(
 }
 /**
  * Fetches the address balance from token contract at a specific block
- * @returns 
+ * @returns
  */
-export async function getBalanceAtBlock(web3Client: PublicClient, abi: any, functionName: string, contractAddress: string, address: string, blockNumber: BigInt, ...args: any[]) {
-  return web3Client.readContract({
+export async function getBalanceAtBlock(
+  web3Client: PublicClient,
+  abi: any,
+  functionName: string,
+  contractAddress: string,
+  address: string,
+  blockNumber: BigInt,
+  ...args: any[]
+): Promise<bigint> {
+  const result = await web3Client.readContract({
     address: contractAddress,
     abi,
     functionName,
     args: [address, ...args],
     blockNumber,
-  })
+  });
+
+  return result as Promise<bigint>;
+}
+
+export async function getBlockNumberByTimestamp(
+  client: PublicClient,
+  timestamp: number,
+  highBlock?: number,
+  lowBlock?: number
+) {
+  let high = highBlock ?? 0;
+  if (highBlock === 0) {
+    let latestBlock = await client.getBlock({ blockTag: 'latest' });
+    high = Number(latestBlock.number);
+  }
+
+  let low = lowBlock ?? 0;
+
+  while (low <= high) {
+    let mid = Math.floor((low + high) / 2);
+    let midBlock = await client.getBlock({ blockNumber: BigInt(mid) });
+
+    const blockTimestamp = Number(midBlock.timestamp);
+
+    if (blockTimestamp < timestamp) {
+      low = mid + 1;
+    } else if (blockTimestamp > timestamp) {
+      high = mid - 1;
+    } else {
+      return midBlock;
+    }
+  }
+
+  return high; // Returns the block number with the closest timestamp before the given timestamp
 }

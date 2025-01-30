@@ -16,8 +16,10 @@ model Event {
   ethUsdPrice     Float    @default(0)
   pspUsdPrice     Float    @default(0)
   totalPSP        String   @default("0")
-  sePSP1Amount    String   @default("0")
-  sePSP2Amount    String   @default("0")
+  sePSP1AmountEth String   @default("0")
+  sePSP1AmountOp  String   @default("0")
+  sePSP2AmountEth String   @default("0")
+  sePSP2AmountOp  String   @default("0")
   input           String   @default("")
   decodedFunction String   @default("")
   blockNumber     String
