@@ -13,8 +13,8 @@ model Event {
   user            String
   gasUsed         String
   gasPrice        String   @default("0")
-  ethUsdPrice     Int      @default(0)
-  pspUsdPrice     Int      @default(0)
+  ethUsdPrice     Float    @default(0)
+  pspUsdPrice     Float    @default(0)
   totalPSP        String   @default("0")
   sePSP1Amount    String   @default("0")
   sePSP2Amount    String   @default("0")
@@ -64,4 +64,10 @@ model UserParaBoost {
   user           String
   paraBoost      Float
   lastCalculated DateTime
+}
+
+model PSPUsdValue {
+  id    Int      @id @default(autoincrement())
+  date  DateTime
+  value Float
 }
