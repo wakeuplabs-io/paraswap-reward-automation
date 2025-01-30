@@ -12,6 +12,7 @@
     "fetch:events": "tsx ./src/event-fetcher.ts",
     "fetch:sepsp2": "tsx ./src/sePSP2-fetcher.ts",
     "calculate-paraboost": "tsx ./src/paraboost-calculator-v2.ts",
+    "process-events": "tsx ./src/events-processor.ts",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev"
   },

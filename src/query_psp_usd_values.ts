@@ -10,11 +10,13 @@ import dayjs from 'dayjs';
  */
 
 const prisma = new PrismaClient();
-const DUNE_API_KEY = 'VncnUwAFlENRKXvzXR4BIjXrV3yoYDdv';
+const DUNE_API_KEY = 'DUNE_API_KEY';
 const DUNE_QUERY_ID = '4640892';
 
 (async () => {
   try {
+    await prisma.pSPUsdValue.deleteMany({});
+
     const response = await fetch(
       `https://api.dune.com/api/v1/query/${DUNE_QUERY_ID}/results?limit=15000`,
       {
