@@ -1,11 +1,8 @@
 import { PrismaClient, Event } from '@prisma/client';
 import dayjs from 'dayjs';
-import { Hex, hexToBigInt } from 'viem';
-
-type AugustusEvent = Pick<
-  Event,
-  'user' | 'type' | 'gasUsed' | 'transactionHash' | 'blockNumber'
->;
+import { Hex, hexToBigInt, decodeFunctionData, hexToNumber } from 'viem';
+import augustusAbi from './abis/augustusV6Abi.json';
+import deltaAbi from './abis/deltaAbi.json';
 
 type BatchRequest = {
   jsonrpc: string;
@@ -16,20 +13,22 @@ type BatchRequest = {
 
 type Block = {
   number: string;
-  receipts: {
-    to: string;
+  timestamp: string;
+  transactions: {
+    to: string | null; // `to` can be null for contract creation transactions
     from: string;
-    gasUsed: string;
-    transactionHash: string;
+    gas: string;
+    hash: string;
     blockNumber: string;
+    input: string;
   }[];
 };
 
-const AUGUSTUS_CONTRACT_ADDRESS = '0x6a000f20005980200259b80c5102003040001068'; // Augustus v6.2 Mainnet address - https://etherscan.io/address/0x6a000f20005980200259b80c5102003040001068
-const DELTA_CONTRACT_ADDRESS = '0x0000000000bbf5c5fd284e657f01bd000933c96d'; // Augustus Delta V2 Mainnet address - https://etherscan.io/address/0x0000000000bbf5c5fd284e657f01bd000933c96d
-const FINAL_BLOCK = 21716022;
-const INITIAL_BLOCK = 21516415;
-const CHUNK_SIZE = 1000;
+const AUGUSTUS_CONTRACT_ADDRESS = '0x6a000f20005980200259b80c5102003040001068'; // Augustus v6.2 Mainnet address
+const DELTA_CONTRACT_ADDRESS = '0x0000000000bbf5c5fd284e657f01bd000933c96d'; // Augustus Delta V2 Mainnet address
+const FINAL_BLOCK = 21661976;
+const INITIAL_BLOCK = 21461472;
+const CHUNK_SIZE = 200;
 const BATCH_SIZE = 200;
 const ALCHEMY_API_KEY = 'API_KEY';
 const ALCHEMY_RPC_URL = `https://eth-mainnet.g.alchemy.com/v2/${ALCHEMY_API_KEY}`; // Replace with your Alchemy API key
@@ -51,45 +50,129 @@ async function sendBatchRequests(batch: BatchRequest[]): Promise<Block[]> {
   return results.map((res) => res.result || null);
 }
 
+async function getReceipts(txs: any[]): Promise<Map<string, any>> {
+  const batch = txs.map((tx) => ({
+    jsonrpc: '2.0',
+    id: tx.hash,
+    method: 'eth_getTransactionReceipt',
+    params: [tx.hash],
+  }));
+
+  try {
+    const response = await fetch(ALCHEMY_RPC_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+      },
+      body: JSON.stringify(batch),
+    });
+
+    return response
+      .json()
+      .then((response) =>
+        (response as Array<any>).reduce(
+          (acc, { result }) => acc.set(result.transactionHash, result),
+          new Map<string, any>()
+        )
+      );
+  } catch (error) {
+    console.log(error);
+    throw error;
+  }
+}
+
+// Function to decode transaction input data
+function decodeTransactionInput({
+  to,
+  input,
+  hash,
+}: {
+  to: string;
+  input: string;
+  hash: string;
+}): string {
+  try {
+    const abi =
+      to.toLowerCase() === AUGUSTUS_CONTRACT_ADDRESS.toLowerCase()
+        ? augustusAbi
+        : deltaAbi;
+
+    const { functionName } = decodeFunctionData({
+      abi,
+      data: input as Hex,
+    });
+
+    return functionName;
+  } catch (error) {
+    console.error('Failed to decode input data from transaction', hash);
+    return '';
+  }
+}
+
 async function performBatchRequest(
   batchBlockNumbers: number[]
-): Promise<AugustusEvent[]> {
+): Promise<Event[]> {
   const batch = batchBlockNumbers.map((blockNumber) => ({
     jsonrpc: '2.0',
     id: blockNumber,
-    // method: 'eth_getBlockReceipts',
-    // params: [`0x${blockNumber.toString(16)}`],
-    method: 'alchemy_getTransactionReceipts',
-    params: [
-      {
-        blockNumber: `0x${blockNumber.toString(16)}`,
-      },
-    ],
+    method: 'eth_getBlockByNumber',
+    params: [`0x${blockNumber.toString(16)}`, true], // true to include full transaction objects
   }));
 
   try {
     const blocks = await sendBatchRequests(batch);
-    return blocks
-      .filter((block) => block && block.receipts) // Filter out null blocks or missing data
-      .flatMap((block) => block.receipts) // Flatten all transactions
-      .filter(
-        (tx) =>
-          tx.to &&
-          [
-            AUGUSTUS_CONTRACT_ADDRESS.toLowerCase(),
-            DELTA_CONTRACT_ADDRESS.toLowerCase(),
-          ].includes(tx.to.toLowerCase())
-      )
-      .map((tx) => ({
+
+    const txs = blocks
+      .filter((block) => block && block.transactions) // Filter out null blocks or missing data
+      .flatMap((block) =>
+        block.transactions
+          .filter(
+            (tx) =>
+              tx.to &&
+              [
+                AUGUSTUS_CONTRACT_ADDRESS.toLowerCase(),
+                DELTA_CONTRACT_ADDRESS.toLowerCase(),
+              ].includes(tx.to.toLowerCase())
+          )
+          .map((tx) => ({
+            ...tx,
+            blockTimestamp: block.timestamp,
+          }))
+      );
+
+    if (txs.length === 0) {
+      return [];
+    }
+
+    // cooldown 500 ms
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+    //get the receipt request for each transaction
+    const receipts = await getReceipts(txs);
+
+    return txs.map((tx) => {
+      const receipt = receipts.get(tx.hash);
+      return {
+        transactionHash: tx.hash,
         user: tx.from,
         type:
-          tx.to.toLowerCase() === AUGUSTUS_CONTRACT_ADDRESS.toLowerCase()
+          tx.to!.toLowerCase() === AUGUSTUS_CONTRACT_ADDRESS.toLowerCase()
             ? 'Augustus'
             : 'Delta',
-        gasUsed: hexToBigInt(tx.gasUsed as Hex).toString(),
-        transactionHash: tx.transactionHash,
-        blockNumber: hexToBigInt(tx.blockNumber as Hex).toString(),
-      }));
+        gasUsed: hexToBigInt(receipt.gasUsed as Hex).toString(), // Use `gas` instead of `gasUsed`
+        gasPrice: hexToBigInt(receipt.effectiveGasPrice as Hex).toString(),
+        ethUsdPrice: 0,
+        pspUsdPrice: 0,
+        totalPSP: '0',
+        sePSP1Amount: '0',
+        sePSP2Amount: '0',
+        blockNumber: hexToBigInt(receipt.blockNumber as Hex).toString(),
+        input: tx.input,
+        decodedFunction: decodeTransactionInput(tx),
+        blockTimestamp: hexToNumber(tx.blockTimestamp as Hex),
+        createdAt: dayjs().toDate(),
+      };
+    });
   } catch (error) {
     console.log(
       'Failed batch request:',
@@ -119,8 +202,7 @@ async function getTransactionsForBlockRange(
   for (let i = 0; i < blockNumbers.length; i += BATCH_SIZE) {
     const batchBlockNumbers = blockNumbers.slice(i, i + BATCH_SIZE);
     batchRequests.push(
-      new Promise<AugustusEvent[]>(async (resolve, reject) => {
-        // console.log(`Fetching ${i}/${blockNumbers.length}`);
+      new Promise<Event[]>(async (resolve, reject) => {
         const batchTransactions = await performBatchRequest(batchBlockNumbers);
         resolve(batchTransactions);
       })
@@ -145,8 +227,6 @@ async function getTransactionsForBlockRange(
 
 // Main function to iterate through chunks
 async function getContractTransactions(startBlock: number, endBlock: number) {
-  // let allTransactions: AugustusTransaction[] = [];
-
   const chunkRanges = Array.from(
     { length: Math.ceil((endBlock - startBlock + 1) / CHUNK_SIZE) },
     (_, i) => [
@@ -155,7 +235,6 @@ async function getContractTransactions(startBlock: number, endBlock: number) {
     ]
   );
 
-  // console.log(chunkRanges);
   let totalTransactionsSaved = 0;
 
   for (const [startBlock, endBlock] of chunkRanges) {
@@ -186,7 +265,6 @@ async function getContractTransactions(startBlock: number, endBlock: number) {
 
     const lastProcessedBlock = lastBlock?.value && Number(lastBlock?.value);
 
-    //TODO: IMPROVE THIS LOGIC
     if (lastProcessedBlock && lastProcessedBlock >= FINAL_BLOCK) {
       console.log(`Last processed block is ${lastProcessedBlock}, skipping...`);
       return;
