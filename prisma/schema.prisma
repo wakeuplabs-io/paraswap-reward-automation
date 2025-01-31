@@ -25,6 +25,7 @@ model Event {
   input                String   @default("")
   decodedFunction      String   @default("")
   boost                Float    @default(0)
+  score                String   @default("0")
   epochActivelyStaking Int      @default(0)
   gasRefund            String   @default("0")
   refundedAmountUsd    Float    @default(0)
