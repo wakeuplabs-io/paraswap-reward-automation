@@ -13,6 +13,8 @@ model Event {
   user                 String
   gasUsed              String
   gasPrice             String   @default("0")
+  gasUsedChainCurrency String   @default("0")
+  gasUsedUSD           Float    @default(0)
   ethUsdPrice          Float    @default(0)
   pspUsdPrice          Float    @default(0)
   totalPSP             String   @default("0")
@@ -24,8 +26,12 @@ model Event {
   decodedFunction      String   @default("")
   boost                Float    @default(0)
   epochActivelyStaking Int      @default(0)
+  gasRefund            String   @default("0")
+  refundedAmountUsd    Float    @default(0)
+  refundedAmountPSP    String   @default("0")
   blockNumber          String
   blockTimestamp       Int      @default(0)
+  status               String   @default("pending")
   createdAt            DateTime @default(now())
 }
 

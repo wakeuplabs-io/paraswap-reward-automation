@@ -18,6 +18,7 @@
     "process-events-sePSP-op": "tsx ./src/events-processor-sePSP-op.ts",
     "process-events-sePSP2": "tsx ./src/events-processor-sePSP2.ts",
     "process-events-sePSP2-op": "tsx ./src/events-processor-sePSP2-op.ts",
+    "gas-refund": "tsx ./src/process-gas-refund.ts",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev"
   },
@@ -31,6 +32,7 @@
   },
   "dependencies": {
     "@prisma/client": "^6.2.1",
+    "csv-parser": "^3.2.0",
     "dayjs": "^1.11.13",
     "dotenv": "^16.4.7",
     "tsx": "^4.19.2",
