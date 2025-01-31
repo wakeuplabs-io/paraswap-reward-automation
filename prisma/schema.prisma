@@ -8,23 +8,25 @@ datasource db {
 }
 
 model Event {
-  transactionHash String   @id @unique
-  type            String // Delta or Augustus
-  user            String
-  gasUsed         String
-  gasPrice        String   @default("0")
-  ethUsdPrice     Float    @default(0)
-  pspUsdPrice     Float    @default(0)
-  totalPSP        String   @default("0")
-  sePSP1AmountEth String   @default("0")
-  sePSP1AmountOp  String   @default("0")
-  sePSP2AmountEth String   @default("0")
-  sePSP2AmountOp  String   @default("0")
-  input           String   @default("")
-  decodedFunction String   @default("")
-  blockNumber     String
-  blockTimestamp  Int      @default(0)
-  createdAt       DateTime @default(now())
+  transactionHash      String   @id @unique
+  type                 String // Delta or Augustus
+  user                 String
+  gasUsed              String
+  gasPrice             String   @default("0")
+  ethUsdPrice          Float    @default(0)
+  pspUsdPrice          Float    @default(0)
+  totalPSP             String   @default("0")
+  sePSP1AmountEth      String   @default("0")
+  sePSP1AmountOp       String   @default("0")
+  sePSP2AmountEth      String   @default("0")
+  sePSP2AmountOp       String   @default("0")
+  input                String   @default("")
+  decodedFunction      String   @default("")
+  boost                Float    @default(0)
+  epochActivelyStaking Int      @default(0)
+  blockNumber          String
+  blockTimestamp       Int      @default(0)
+  createdAt            DateTime @default(now())
 }
 
 model Metadata {
