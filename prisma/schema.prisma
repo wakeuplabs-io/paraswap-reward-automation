@@ -75,3 +75,9 @@ model PSPUsdValue {
   date  DateTime
   value Float
 }
+
+model OptimismBlock {
+  id        Int @id @default(autoincrement())
+  number    Int
+  timestamp Int
+}
