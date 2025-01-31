@@ -1,6 +1,6 @@
 import dayjs from 'dayjs';
 import utc from 'dayjs/plugin/utc';
-
+import { PublicClient } from 'viem';
 export function getEpochsDates(
   fromDate: Date,
   lastEpoch: number,
@@ -21,4 +21,17 @@ export function getEpochsDates(
   }
 
   return epochsDates;
+}
+/**
+ * Fetches the address balance from token contract at a specific block
+ * @returns 
+ */
+export async function getBalanceAtBlock(web3Client: PublicClient, abi: any, functionName: string, contractAddress: string, address: string, blockNumber: BigInt, ...args: any[]) {
+  return web3Client.readContract({
+    address: contractAddress,
+    abi,
+    functionName,
+    args: [address, ...args],
+    blockNumber,
+  })
 }
