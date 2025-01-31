@@ -16,6 +16,7 @@
     "process-events-sePSP": "tsx ./src/events-processor-sePSP.ts",
     "process-events-sePSP-op": "tsx ./src/events-processor-sePSP-op.ts",
     "process-events-sePSP2": "tsx ./src/events-processor-sePSP2.ts",
+    "process-events-sePSP2-op": "tsx ./src/events-processor-sePSP2-op.ts",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev"
   },
