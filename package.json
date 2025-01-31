@@ -13,6 +13,7 @@
     "fetch:sepsp2": "tsx ./src/sePSP2-fetcher.ts",
     "calculate-paraboost": "tsx ./src/paraboost-calculator-v2.ts",
     "process-events-pspusd": "tsx ./src/events-processor-pspusd.ts",
+    "process-events-ethusd": "tsx ./src/events-processor-ethusd.ts",
     "process-events-sePSP": "tsx ./src/events-processor-sePSP.ts",
     "process-events-sePSP-op": "tsx ./src/events-processor-sePSP-op.ts",
     "process-events-sePSP2": "tsx ./src/events-processor-sePSP2.ts",
