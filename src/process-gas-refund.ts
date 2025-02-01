@@ -103,7 +103,5 @@ async function processEvents(events: Event[]) {
     },
   });
 
-  console.log('dvd', dbAugustusEvents[0])
-
   processEvents(dbAugustusEvents);
 })();
