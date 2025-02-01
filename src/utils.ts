@@ -1,6 +1,6 @@
 import dayjs from 'dayjs';
 import utc from 'dayjs/plugin/utc';
-import { PublicClient } from 'viem';
+import { Address, PublicClient } from 'viem';
 export function getEpochsDates(
   fromDate: Date,
   lastEpoch: number,
@@ -30,9 +30,9 @@ export async function getBalanceAtBlock(
   web3Client: PublicClient,
   abi: any,
   functionName: string,
-  contractAddress: string,
+  contractAddress: Address,
   address: string,
-  blockNumber: BigInt,
+  blockNumber: bigint,
   ...args: any[]
 ): Promise<bigint> {
   const result = await web3Client.readContract({
@@ -51,7 +51,7 @@ export async function getBlockNumberByTimestamp(
   timestamp: number,
   highBlock?: number,
   lowBlock?: number
-) {
+): Promise<number> {
   let high = highBlock ?? 0;
   if (highBlock === 0) {
     let latestBlock = await client.getBlock({ blockTag: 'latest' });
@@ -71,7 +71,7 @@ export async function getBlockNumberByTimestamp(
     } else if (blockTimestamp > timestamp) {
       high = mid - 1;
     } else {
-      return midBlock;
+      return Number(midBlock.number);
     }
   }
 

@@ -1,6 +1,7 @@
 import { Event, PrismaClient } from '@prisma/client';
 import csv from 'csv-parser';
 import fs from 'fs';
+import { calculateParaBoost } from './paraboost-score';
 
 const AUGUSTUS_CONTRACT_ADDRESS = '0x6a000f20005980200259b80c5102003040001068'; // Augustus v6.2 Mainnet address
 const DELTA_CONTRACT_ADDRESS = '0x0000000000bbf5c5fd284e657f01bd000933c96d'; // Augustus Delta V2 Mainnet address
@@ -51,6 +52,8 @@ async function processEvents(events: Event[]) {
         ((sePSP2PSPETH + sePSP2PSPOP) * BigInt(2.5 * 10 ** 18)) /
           BigInt(10 ** 18);
 
+      const boost = await calculateParaBoost(event);
+
       toUpdate.push(
         prisma.event.update({
           where: { transactionHash: event.transactionHash },
@@ -64,6 +67,7 @@ async function processEvents(events: Event[]) {
               sePSP2PSPOP
             ).toString(),
             score: score.toString(),
+            boost,
           },
         })
       );
@@ -98,6 +102,8 @@ async function processEvents(events: Event[]) {
       },
     },
   });
+
+  console.log('dvd', dbAugustusEvents[0])
 
   processEvents(dbAugustusEvents);
 })();
