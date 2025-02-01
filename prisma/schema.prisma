@@ -71,10 +71,12 @@ model UserEpochBalance {
 }
 
 model UserParaBoost {
-  id             Int      @id @default(autoincrement())
-  user           String
-  paraBoost      Float
-  lastCalculated DateTime
+  id                    Int      @id @default(autoincrement())
+  user                  String   @unique
+  paraBoost             Float
+  epochsGeneratingBoost Int      @default(0)
+  lastEpochProcessed    Int      @default(0)
+  lastCalculated        DateTime
 }
 
 model PSPUsdValue {
