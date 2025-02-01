@@ -16,7 +16,7 @@ import {
 } from 'viem';
 import { mainnet, optimism } from 'viem/chains';
 
-const ALCHEMY_API_KEY = 'API_KEY';
+const ALCHEMY_API_KEY = 'API-KEY';
 const ALCHEMY_MAINNET_RPC_URL = `https://eth-mainnet.g.alchemy.com/v2/${ALCHEMY_API_KEY}`; // Replace with your Alchemy API key
 const ALCHEMY_OP_RPC_URL = `https://opt-mainnet.g.alchemy.com/v2/${ALCHEMY_API_KEY}`; // Replace with your Alchemy API key
 
@@ -73,17 +73,17 @@ async function fetchDepositEventsInRange(
       fromBlock: fromBlock,
       toBlock: toBlock,
       event: parseAbiItem(
-        'event Deposited(address indexed user, uint256 value)'
+        'event Deposited(address indexed user, uint256 amount)'
       ),
       args: {
-        from: addresses,
+        user: addresses,
       },
     })
-      
+    
     return logs.map((log) => ({
       type: 'Deposited',
-      user: log.args.from!,
-      amount: log.args.value?.toString() ?? '0',
+      user: log.args.user!,
+      amount: log.args.amount?.toString() ?? '0',
       transactionHash: log.transactionHash,
       blockNumber: log.blockNumber.toString(),
       blockTimestamp: (log as any)['blockTimestamp']
@@ -119,13 +119,13 @@ async function fetchWithdrawEventsInRange(
         'event Withdraw(int256 indexed id, address indexed user, uint256 amount)'
       ),
       args: {
-        owner: addresses,
+        user: addresses,
       },
     });
 
     return logs.map((log) => ({
       type: 'Withdraw',
-      user: log.args.owner!,
+      user: log.args.user!,
       amount: log.args.amount?.toString() ?? '0',
       transactionHash: log.transactionHash,
       blockNumber: log.blockNumber.toString(),
@@ -155,7 +155,7 @@ async function fetchEvents(
   const chunkSize = 10000n; // 10k blocks per chunk
   console.log(`Blocks Chunk Size: ${chunkSize}`);
   let currentBlock = startBlock;
-  const transferEvents = [];
+  const depositEvents = [];
   const withdrawEvents = [];
 
   while (currentBlock <= endBlock) {
@@ -167,14 +167,14 @@ async function fetchEvents(
     console.log(`Fetching events from block ${currentBlock} to ${toBlock}...`);
 
     try {
-      const transferLogs = await fetchDepositEventsInRange(
+      const depositLogs = await fetchDepositEventsInRange(
         addresses,
         currentBlock,
         toBlock,
         client,
         contractAddress
       );
-      transferEvents.push(...transferLogs);
+      depositEvents.push(...depositLogs);
     } catch (error) {
       console.error(
         `Error fetching Transfer events for block range ${currentBlock}-${toBlock}:`,
@@ -201,7 +201,7 @@ async function fetchEvents(
     currentBlock += chunkSize;
   }
 
-  return [...transferEvents, ...withdrawEvents];
+  return [...depositEvents, ...withdrawEvents];
 }
 
 async function getUsersWithOrders(): Promise<Address[]> {
