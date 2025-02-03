@@ -47,37 +47,52 @@ const publicClient = createPublicClient({
 })
 
 export async function getGasRefundTransactions() {
-  const receipts: { receipt: TransactionReceipt, blockNumber: BigInt, blockTimestamp: BigInt }[] = [] 
+  const receipts: Promise<{ receipt: TransactionReceipt, blockNumber: BigInt, blockTimestamp: BigInt }[]>[] = [] 
 
   for (let processingBlockNumber = INITIAL_BLOCK; processingBlockNumber <= FINAL_BLOCK; processingBlockNumber += 1) {
     console.log(`Processing block ${processingBlockNumber}...`);
 
-    const block = await publicClient.getBlock({ blockNumber: BigInt(processingBlockNumber) });
+    const result = getGasRefundTransactionsByBlock(processingBlockNumber);
 
-    for (let index = 0; index < block.transactions.length; index++) {
-      console.log(`Processing transaction ${index}/${block.transactions.length}...`);
+    receipts.push(result);
+  }
 
-      const txHash = block.transactions[index];
+  const results = await Promise.all(receipts);
+  const receiptsWithBlockInfo = results.flat();
 
-      const [transaction, receipt] = await Promise.all([
-        publicClient.getTransaction({ hash: txHash }), 
-        publicClient.getTransactionReceipt({ hash: txHash })
-      ]);
+  return receiptsWithBlockInfo;
+}
 
-      if (![AUGUSTUS_CONTRACT_ADDRESS, DELTA_CONTRACT_ADDRESS].includes(receipt.to ?? "0x")) {
-        continue
-      }
+export async function getGasRefundTransactionsByBlock(processingBlockNumber: number) {
+  const receipts: { receipt: TransactionReceipt, blockNumber: BigInt, blockTimestamp: BigInt }[] = [] 
 
-      if (receipt.status !== "success") {
-        continue
-      }
+  console.log(`Processing block ${processingBlockNumber}...`);
 
-      if (!DELTA_METHOD_ID_ARR.includes(transaction.input.slice(0, 10)) && !AGUSTUS_METHOD_ID_ARR.includes(transaction.input.slice(0, 10))) { 
-        continue;
-      }
+  const block = await publicClient.getBlock({ blockNumber: BigInt(processingBlockNumber) });
 
-      receipts.push({receipt, blockNumber: block.number, blockTimestamp: block.timestamp});
+  for (let index = 0; index < block.transactions.length; index++) {
+    console.log(`Processing transaction ${index}/${block.transactions.length}...`);
+
+    const txHash = block.transactions[index];
+
+    const [transaction, receipt] = await Promise.all([
+      publicClient.getTransaction({ hash: txHash }), 
+      publicClient.getTransactionReceipt({ hash: txHash })
+    ]);
+
+    if (![AUGUSTUS_CONTRACT_ADDRESS, DELTA_CONTRACT_ADDRESS].includes(receipt.to ?? "0x")) {
+      continue
     }
+
+    if (receipt.status !== "success") {
+      continue
+    }
+
+    if (!DELTA_METHOD_ID_ARR.includes(transaction.input.slice(0, 10)) && !AGUSTUS_METHOD_ID_ARR.includes(transaction.input.slice(0, 10))) { 
+      continue;
+    }
+
+    receipts.push({receipt, blockNumber: block.number, blockTimestamp: block.timestamp});
   }
 
   return receipts;
