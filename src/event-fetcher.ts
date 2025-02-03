@@ -58,10 +58,12 @@ export async function getGasRefundTransactions() {
       console.log(`Processing transaction ${index}/${block.transactions.length}...`);
 
       const txHash = block.transactions[index];
-      
-      const transaction = await publicClient.getTransaction({ hash: txHash });
-      const receipt = await publicClient.getTransactionReceipt({ hash: txHash });
-      
+
+      const [transaction, receipt] = await Promise.all([
+        publicClient.getTransaction({ hash: txHash }), 
+        publicClient.getTransactionReceipt({ hash: txHash })
+      ]);
+
       if (![AUGUSTUS_CONTRACT_ADDRESS, DELTA_CONTRACT_ADDRESS].includes(receipt.to ?? "0x")) {
         continue
       }
