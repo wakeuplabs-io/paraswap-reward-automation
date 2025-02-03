@@ -1,6 +1,6 @@
 import { PrismaClient, Event } from '@prisma/client';
 import dayjs from 'dayjs';
-import { Hex, hexToBigInt, decodeFunctionData, hexToNumber } from 'viem';
+import { Hex, hexToBigInt, decodeFunctionData, hexToNumber, TransactionReceipt } from 'viem';
 import augustusAbi from './abis/augustusV6Abi.json';
 import deltaAbi from './abis/deltaAbi.json';
 
@@ -24,16 +24,63 @@ type Block = {
   }[];
 };
 
+const DELTA_METHOD_ID_ARR = ['0xad180c4e', '0x68a89066'];
+const AGUSTUS_METHOD_ID_ARR = ['0xe3ead59e', '0xd85ca173', '0x1a01c532', '0xe37ed256', '0xe8bb3b6c', '0x876a02f6', '0x7f457675', '0xd6ed22e6', '0xa76f4eb6', '0x5e94e28d', '0xda35bb0d'];
+
 const AUGUSTUS_CONTRACT_ADDRESS = '0x6a000f20005980200259b80c5102003040001068'; // Augustus v6.2 Mainnet address
 const DELTA_CONTRACT_ADDRESS = '0x0000000000bbf5c5fd284e657f01bd000933c96d'; // Augustus Delta V2 Mainnet address
 const FINAL_BLOCK = 21661976;
 const INITIAL_BLOCK = 21461472;
-const CHUNK_SIZE = 200;
-const BATCH_SIZE = 200;
+const CHUNK_SIZE = 20;
+const BATCH_SIZE = 20;
 const ALCHEMY_API_KEY = 'API_KEY';
 const ALCHEMY_RPC_URL = `https://eth-mainnet.g.alchemy.com/v2/${ALCHEMY_API_KEY}`; // Replace with your Alchemy API key
 
 const prismaClient = new PrismaClient();
+
+import { createPublicClient, http } from 'viem'
+import { mainnet } from 'viem/chains'
+ 
+const publicClient = createPublicClient({ 
+  chain: mainnet,
+  transport: http()
+})
+
+export async function getGasRefundTransactions() {
+  const receipts: { receipt: TransactionReceipt, blockNumber: BigInt, blockTimestamp: BigInt }[] = [] 
+
+  for (let processingBlockNumber = INITIAL_BLOCK; processingBlockNumber <= FINAL_BLOCK; processingBlockNumber += 1) {
+    console.log(`Processing block ${processingBlockNumber}...`);
+
+    const block = await publicClient.getBlock({ blockNumber: BigInt(processingBlockNumber) });
+
+    for (let index = 0; index < block.transactions.length; index++) {
+      console.log(`Processing transaction ${index}/${block.transactions.length}...`);
+
+      const txHash = block.transactions[index];
+      
+      const transaction = await publicClient.getTransaction({ hash: txHash });
+      const receipt = await publicClient.getTransactionReceipt({ hash: txHash });
+      
+      if (![AUGUSTUS_CONTRACT_ADDRESS, DELTA_CONTRACT_ADDRESS].includes(receipt.to ?? "0x")) {
+        continue
+      }
+
+      if (receipt.status !== "success") {
+        continue
+      }
+
+      if (!DELTA_METHOD_ID_ARR.includes(transaction.input.slice(0, 10)) && !AGUSTUS_METHOD_ID_ARR.includes(transaction.input.slice(0, 10))) { 
+        continue;
+      }
+
+      receipts.push({receipt, blockNumber: block.number, blockTimestamp: block.timestamp});
+    }
+  }
+
+  return receipts;
+}
+
 
 // Function to send a batch request to Alchemy
 async function sendBatchRequests(batch: BatchRequest[]): Promise<Block[]> {
