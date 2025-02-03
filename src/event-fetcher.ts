@@ -43,7 +43,7 @@ import { mainnet } from 'viem/chains'
  
 const publicClient = createPublicClient({ 
   chain: mainnet,
-  transport: http()
+  transport: http(ALCHEMY_RPC_URL)
 })
 
 export async function getGasRefundTransactions() {
